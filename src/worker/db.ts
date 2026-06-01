@@ -9,7 +9,12 @@ export async function getOrCreatePlayer(
     throw new Error('Player name is required and must be a non-empty string')
   }
 
+  const NAME_REGEX = /^[A-Za-z0-9 _-]{1,32}$/
   const name = playerName.trim()
+
+  if (!NAME_REGEX.test(name)) {
+    throw new Error('Invalid player name: must be 1-32 letters, digits, spaces, _ or -')
+  }
 
   let player = await env.DB.prepare('SELECT * FROM players WHERE name = ?')
     .bind(name)
