@@ -1,21 +1,9 @@
 import type { Player, LeaderboardEntry } from './types'
 import { parseSymbols, calculateReward } from './game'
 
-export async function getPlayerBySessionId(
-  env: { DB: D1Database },
-  sessionId: string
-): Promise<Player | null> {
-  const player = await env.DB.prepare('SELECT * FROM players WHERE session_id = ?')
-    .bind(sessionId)
-    .first<Player>()
-
-  return player || null
-}
-
 export async function getOrCreatePlayer(
   env: { DB: D1Database },
-  playerName: string,
-  sessionId?: string | null
+  playerName: string
 ): Promise<Player> {
   if (!playerName || typeof playerName !== 'string' || playerName.trim().length === 0) {
     throw new Error('Player name is required and must be a non-empty string')
@@ -29,9 +17,9 @@ export async function getOrCreatePlayer(
 
   if (!player) {
     const result = await env.DB.prepare(
-      'INSERT INTO players (name, session_id) VALUES (?, ?)'
+      'INSERT INTO players (name) VALUES (?)'
     )
-      .bind(name, sessionId ?? null)
+      .bind(name)
       .run()
     player = await env.DB.prepare('SELECT * FROM players WHERE player_id = ?')
       .bind(result.meta.last_row_id)
@@ -196,6 +184,79 @@ export async function getPlayerById(
   env: { DB: D1Database },
   playerId: number
 ): Promise<Player | null> {
+  const player = await env.DB.prepare('SELECT * FROM players WHERE player_id = ?')
+    .bind(playerId)
+    .first<Player>()
+
+  return player || null
+}
+
+export async function createSessionToken(
+  env: { DB: D1Database },
+  playerId: number
+): Promise<string> {
+  const bytes = new Uint8Array(32)
+  crypto.getRandomValues(bytes)
+  const token = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    .toISOString()
+
+  await env.DB.prepare(
+    'INSERT INTO auth_tokens (token, player_id, expires_at) VALUES (?, ?, ?)'
+  )
+    .bind(token, playerId, expiresAt)
+    .run()
+
+  return token
+}
+
+export async function validateSessionToken(
+  env: { DB: D1Database },
+  token: string
+): Promise<{ playerId: number; expiresAt: string } | null> {
+  const result = await env.DB.prepare(
+    `SELECT player_id, expires_at FROM auth_tokens 
+     WHERE token = ? AND expires_at > datetime('now')`
+  )
+    .bind(token)
+    .first<{ player_id: number; expires_at: string }>()
+
+  if (!result) {
+    return null
+  }
+
+  return { playerId: result.player_id, expiresAt: result.expires_at }
+}
+
+export async function revokeSessionToken(
+  env: { DB: D1Database },
+  token: string
+): Promise<void> {
+  await env.DB.prepare('DELETE FROM auth_tokens WHERE token = ?')
+    .bind(token)
+    .run()
+}
+
+export async function revokeAllPlayerTokens(
+  env: { DB: D1Database },
+  playerId: number
+): Promise<void> {
+  await env.DB.prepare('DELETE FROM auth_tokens WHERE player_id = ?')
+    .bind(playerId)
+    .run()
+}
+
+export async function getPlayerByIdWithAuth(
+  env: { DB: D1Database },
+  playerId: number,
+  token: string
+): Promise<Player | null> {
+  const auth = await validateSessionToken(env, token)
+  if (!auth || auth.playerId !== playerId) {
+    return null
+  }
+
   const player = await env.DB.prepare('SELECT * FROM players WHERE player_id = ?')
     .bind(playerId)
     .first<Player>()

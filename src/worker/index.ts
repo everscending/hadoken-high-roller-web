@@ -5,6 +5,29 @@ export interface Env {
   ASSETS: Fetcher
 }
 
+interface AuthContext {
+  playerId: number
+}
+
+async function authMiddleware(
+  req: Request,
+  env: Env
+): Promise<AuthContext | null> {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null
+  }
+
+  const token = authHeader.slice(7)
+  const result = await db.validateSessionToken(env, token)
+
+  if (!result) {
+    return null
+  }
+
+  return { playerId: result.playerId }
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url)
@@ -25,8 +48,8 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
       return await handleCreatePlayer(req, env)
     }
 
-    if (req.method === 'GET' && path === '/api/session') {
-      return await handleGetSessionPlayer(req, env)
+    if (req.method === 'GET' && path === '/api/me') {
+      return await handleGetCurrentPlayer(req, env)
     }
 
     if (req.method === 'GET' && path === '/api/leaderboard') {
@@ -34,7 +57,7 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
     }
 
     if (req.method === 'GET' && path.match(/^\/api\/players\/\d+$/)) {
-      return await handleGetPlayer(env, path)
+      return await handleGetPlayer(req, env, path)
     }
 
     if (req.method === 'POST' && path === '/api/games') {
@@ -62,7 +85,7 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
         error.message.includes('Failed to create') ||
         error.message.includes('Failed to record')
       ) {
-        return jsonResponse({ error: error.message }, 404)
+        return jsonResponse({ error: 'Not found' }, 404)
       }
 
       if (
@@ -70,27 +93,44 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
         error.message.includes('Invalid') ||
         error.message.includes('must be')
       ) {
-        return jsonResponse({ error: error.message }, 400)
+        return jsonResponse({ error: 'Invalid request' }, 400)
       }
     }
 
-    return jsonResponse({ error: 'Internal Server Error' }, 500)
+    return jsonResponse({ error: 'Internal server error' }, 500)
   }
 }
 
 async function handleCreatePlayer(req: Request, env: Env): Promise<Response> {
-  const body = (await req.json()) as { playerName?: string; sessionId?: string }
-  const player = await db.getOrCreatePlayer(env, body.playerName ?? '', body.sessionId)
-  return jsonResponse(player)
+  const body = (await req.json()) as { playerName?: string }
+
+  if (!body.playerName || typeof body.playerName !== 'string' || body.playerName.trim().length === 0) {
+    return jsonResponse({ error: 'Player name is required' }, 400)
+  }
+
+  const name = body.playerName.trim()
+
+  if (name.length > 32 || !/^[A-Za-z0-9 _-]+$/.test(name)) {
+    return jsonResponse({ error: 'Invalid player name: must be 1-32 letters, digits, spaces, _ or -' }, 400)
+  }
+
+  const player = await db.getOrCreatePlayer(env, name)
+  const token = await db.createSessionToken(env, player.player_id)
+
+  return jsonResponse({ ...player, authToken: token })
 }
 
-async function handleGetSessionPlayer(req: Request, env: Env): Promise<Response> {
-  const url = new URL(req.url)
-  const sessionId = url.searchParams.get('sessionId')
-  if (!sessionId) {
-    return jsonResponse({ error: 'Session ID is required' }, 400)
+async function handleGetCurrentPlayer(req: Request, env: Env): Promise<Response> {
+  const auth = await authMiddleware(req, env)
+  if (!auth) {
+    return jsonResponse({ error: 'Unauthorized' }, 401)
   }
-  const player = await db.getPlayerBySessionId(env, sessionId)
+
+  const player = await db.getPlayerById(env, auth.playerId)
+  if (!player) {
+    return jsonResponse({ error: 'Not found' }, 404)
+  }
+
   return jsonResponse(player)
 }
 
@@ -99,53 +139,127 @@ async function handleGetLeaderboard(env: Env): Promise<Response> {
   return jsonResponse(leaderboard)
 }
 
-async function handleGetPlayer(env: Env, path: string): Promise<Response> {
+async function handleGetPlayer(req: Request, env: Env, path: string): Promise<Response> {
   const playerId = parseInt(path.split('/').pop() ?? '0', 10)
+
   if (isNaN(playerId)) {
     return jsonResponse({ error: 'Invalid player ID' }, 400)
   }
 
-  const player = await db.getPlayerById(env, playerId)
+  const auth = await authMiddleware(req, env)
+  if (!auth) {
+    return jsonResponse({ error: 'Unauthorized' }, 401)
+  }
+
+  const player = await db.getPlayerByIdWithAuth(env, playerId, req.headers.get('Authorization')!.slice(7))
   if (!player) {
-    return jsonResponse({ error: `Player with ID ${playerId} does not exist` }, 404)
+    return jsonResponse({ error: 'Not found' }, 404)
   }
 
   return jsonResponse(player)
 }
 
 async function handleStartGame(req: Request, env: Env): Promise<Response> {
-  const body = (await req.json()) as { playerId?: number; startingBalance?: number }
-  const result = await db.startGame(env, body.playerId ?? 0, body.startingBalance ?? 0)
+  const auth = await authMiddleware(req, env)
+  if (!auth) {
+    return jsonResponse({ error: 'Unauthorized' }, 401)
+  }
+
+  const body = (await req.json()) as { startingBalance?: number }
+
+  if (!body.startingBalance || !Number.isInteger(body.startingBalance) || body.startingBalance < 0) {
+    return jsonResponse({ error: 'Invalid starting balance: must be a non-negative integer' }, 400)
+  }
+
+  const result = await db.startGame(env, auth.playerId, body.startingBalance)
   return jsonResponse(result)
 }
 
 async function handleRecordSpin(req: Request, env: Env, path: string): Promise<Response> {
+  const auth = await authMiddleware(req, env)
+  if (!auth) {
+    return jsonResponse({ error: 'Unauthorized' }, 401)
+  }
+
   const match = path.match(/^\/api\/games\/(\d+)\/spins$/)
   if (!match) {
     return jsonResponse({ error: 'Invalid game ID' }, 400)
   }
+
   const gameId = parseInt(match[1], 10)
   if (isNaN(gameId)) {
     return jsonResponse({ error: 'Invalid game ID' }, 400)
   }
 
   const body = (await req.json()) as { symbols?: string; betAmount?: number }
-  const result = await db.recordSpin(env, gameId, body.symbols ?? '', body.betAmount ?? 0)
+
+  if (!body.symbols || typeof body.symbols !== 'string') {
+    return jsonResponse({ error: 'Symbols are required' }, 400)
+  }
+
+  if (body.betAmount === undefined || !Number.isInteger(body.betAmount) || body.betAmount <= 0) {
+    return jsonResponse({ error: 'Invalid bet amount: must be a positive integer' }, 400)
+  }
+
+  if (body.betAmount > 100) {
+    return jsonResponse({ error: 'Invalid bet amount: maximum is 100' }, 400)
+  }
+
+  const game = await env.DB.prepare(
+    'SELECT g.player_id FROM games g WHERE g.game_id = ? AND g.end_time IS NULL'
+  )
+    .bind(gameId)
+    .first<{ player_id: number }>()
+
+  if (!game) {
+    return jsonResponse({ error: 'Game not found or already ended' }, 404)
+  }
+
+  if (game.player_id !== auth.playerId) {
+    return jsonResponse({ error: 'Forbidden' }, 403)
+  }
+
+  const result = await db.recordSpin(env, gameId, body.symbols, body.betAmount)
   return jsonResponse(result)
 }
 
 async function handleEndGame(req: Request, env: Env, path: string): Promise<Response> {
+  const auth = await authMiddleware(req, env)
+  if (!auth) {
+    return jsonResponse({ error: 'Unauthorized' }, 401)
+  }
+
   const match = path.match(/^\/api\/games\/(\d+)\/end$/)
   if (!match) {
     return jsonResponse({ error: 'Invalid game ID' }, 400)
   }
+
   const gameId = parseInt(match[1], 10)
   if (isNaN(gameId)) {
     return jsonResponse({ error: 'Invalid game ID' }, 400)
   }
 
   const body = (await req.json()) as { endingBalance?: number }
-  await db.endGame(env, gameId, body.endingBalance ?? 0)
+
+  if (body.endingBalance === undefined || !Number.isInteger(body.endingBalance) || body.endingBalance < 0) {
+    return jsonResponse({ error: 'Invalid ending balance: must be a non-negative integer' }, 400)
+  }
+
+  const game = await env.DB.prepare(
+    'SELECT g.player_id FROM games g WHERE g.game_id = ?'
+  )
+    .bind(gameId)
+    .first<{ player_id: number }>()
+
+  if (!game) {
+    return jsonResponse({ error: 'Game not found' }, 404)
+  }
+
+  if (game.player_id !== auth.playerId) {
+    return jsonResponse({ error: 'Forbidden' }, 403)
+  }
+
+  await db.endGame(env, gameId, body.endingBalance)
   return jsonResponse({})
 }
 

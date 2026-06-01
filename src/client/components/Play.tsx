@@ -169,7 +169,7 @@ const Play = (): React.ReactElement => {
           console.error('Invalid player ID:', playerId)
           return
         }
-        const game = await api.startGame(playerIdNum, startingCoins)
+        const game = await api.startGame(startingCoins)
         setGameId(game.gameId)
         setIsGameStartSoundPlaying(true)
         playGameStartSound(() => {
@@ -221,7 +221,7 @@ const Play = (): React.ReactElement => {
         console.error('Invalid player ID:', playerId)
         return
       }
-      const game = await api.startGame(playerIdNum, startingCoins)
+      const game = await api.startGame(startingCoins)
       setGameId(game.gameId)
       setIsGameStartSoundPlaying(true)
       playGameStartSound(() => {
