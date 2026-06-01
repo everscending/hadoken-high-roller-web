@@ -1,0 +1,14 @@
+name = "hadoken-high-roller"
+main = "src/worker/index.ts"
+compatibility_date = "2024-09-23"
+
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hadoken-high-roller"
+database_id = "121573db-841f-4107-b7c0-9b7ecae951ef"
+migrations_dir = "migrations"
