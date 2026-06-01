@@ -38,9 +38,7 @@ const Home = (): React.ReactElement => {
         setPlayerExists(true)
         setPlayerId(player.player_id)
         setPlayerName(player.name)
-      } catch (error) {
-        // Token missing/invalid/expired — clear it so the user can re-register.
-        console.error('Error restoring session:', error)
+      } catch {
         clearAuthToken()
       }
     }
