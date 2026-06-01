@@ -4,7 +4,7 @@ import { parseSymbols, calculateReward } from './game'
 export async function getOrCreatePlayer(
   env: { DB: D1Database },
   playerName: string
-): Promise<Player> {
+): Promise<{ player: Player; created: boolean }> {
   if (!playerName || typeof playerName !== 'string' || playerName.trim().length === 0) {
     throw new Error('Player name is required and must be a non-empty string')
   }
@@ -21,6 +21,7 @@ export async function getOrCreatePlayer(
     )
       .bind(name)
       .run()
+
     player = await env.DB.prepare('SELECT * FROM players WHERE player_id = ?')
       .bind(result.meta.last_row_id)
       .first<Player>()
@@ -28,9 +29,11 @@ export async function getOrCreatePlayer(
     if (!player) {
       throw new Error('Failed to retrieve newly created player')
     }
+
+    return { player, created: true }
   }
 
-  return player
+  return { player, created: false }
 }
 
 export async function startGame(

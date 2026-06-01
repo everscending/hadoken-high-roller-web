@@ -78,6 +78,13 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
 
     if (error instanceof Error) {
       if (
+        error.message.includes('UNIQUE constraint failed') ||
+        error.message.includes('SQLITE_CONSTRAINT')
+      ) {
+        return jsonResponse({ error: 'Player name already exists' }, 409)
+      }
+
+      if (
         error.message.includes('does not exist') ||
         error.message.includes('Failed to retrieve') ||
         error.message.includes('Failed to calculate') ||
@@ -114,7 +121,12 @@ async function handleCreatePlayer(req: Request, env: Env): Promise<Response> {
     return jsonResponse({ error: 'Invalid player name: must be 1-32 letters, digits, spaces, _ or -' }, 400)
   }
 
-  const player = await db.getOrCreatePlayer(env, name)
+  const { player, created } = await db.getOrCreatePlayer(env, name)
+
+  if (!created) {
+    return jsonResponse({ error: 'Player name already exists' }, 409)
+  }
+
   const token = await db.createSessionToken(env, player.player_id)
 
   return jsonResponse({ ...player, authToken: token })
