@@ -36,8 +36,15 @@ export default {
       return handleApi(req, env, url)
     }
 
-    return env.ASSETS.fetch(req)
+    return withSecurityHeaders(await env.ASSETS.fetch(req))
   }
+}
+
+const securityHeaders: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
 }
 
 async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
@@ -106,6 +113,14 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
 
     return jsonResponse({ error: 'Internal server error' }, 500)
   }
+}
+
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers)
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    headers.set(key, value)
+  }
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
 }
 
 async function handleCreatePlayer(req: Request, env: Env): Promise<Response> {
@@ -276,8 +291,9 @@ async function handleEndGame(req: Request, env: Env, path: string): Promise<Resp
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
-  })
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    headers[key] = value
+  }
+  return new Response(JSON.stringify(data), { status, headers })
 }
