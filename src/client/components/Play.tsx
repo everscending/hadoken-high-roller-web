@@ -155,6 +155,9 @@ const Play = (): React.ReactElement => {
   const [isAutoSpinning, setIsAutoSpinning] = useState<boolean>(false)
   const [isRewardModalVisible, setIsRewardModalVisible] = useState<boolean>(false)
   const autoSpinRef = useRef<boolean>(false)
+  const isGameOverRef = useRef<boolean>(false)
+  const isRewardModalVisibleRef = useRef<boolean>(false)
+  const coinsAfterBetRef = useRef<number>(0)
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null
@@ -234,10 +237,9 @@ const Play = (): React.ReactElement => {
   }
 
   const spin = (): void => {
-    let coinsAfterBet = 0
     setTotalCoins((prev) => {
-      coinsAfterBet = prev - betAmount
-      return coinsAfterBet
+      coinsAfterBetRef.current = prev - betAmount
+      return coinsAfterBetRef.current
     })
     setIsSpinning(true)
     setReward(null)
@@ -287,7 +289,7 @@ const Play = (): React.ReactElement => {
 
       setReward(calculatedReward)
       setIsRewardModalVisible(true)
-      const finalCoins = coinsAfterBet + calculatedReward
+      const finalCoins = coinsAfterBetRef.current + calculatedReward
       setTotalCoins(finalCoins)
 
       const isGameEnding = finalCoins < betAmount
@@ -332,8 +334,8 @@ const Play = (): React.ReactElement => {
             if (
               autoSpinRef.current &&
               finalCoins >= betAmount &&
-              !isGameOver &&
-              !isRewardModalVisible
+              !isGameOverRef.current &&
+              !isRewardModalVisibleRef.current
             ) {
               spin()
             }
@@ -382,6 +384,14 @@ const Play = (): React.ReactElement => {
   useEffect(() => {
     autoSpinRef.current = isAutoSpinning
   }, [isAutoSpinning])
+
+  useEffect(() => {
+    isGameOverRef.current = isGameOver
+  }, [isGameOver])
+
+  useEffect(() => {
+    isRewardModalVisibleRef.current = isRewardModalVisible
+  }, [isRewardModalVisible])
 
   return (
     <div className="play page-container-play">
