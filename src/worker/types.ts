@@ -1,7 +1,6 @@
 export interface Player {
   player_id: number
   name: string
-  session_id: string | null
   created_at: string
   highest_balance: number
   total_spins: number
