@@ -6,12 +6,12 @@ A Street Fighter themed slot machine game built with React, TypeScript, and depl
 
 ### Game Mechanics
 
-- **4-Reel Slot Machine**: Spin 4 reels featuring 16 iconic Street Fighter characters (Ryu, Ken, Chun-Li, Blanka, Guile, Zangief, Dhalsim, E. Honda, Balrog, Vega, Sagat, M. Bison, Cammy, Fei Long, T. Hawk, and Dee Jay)
+- **Multi-Reel Slot Machine**: Spin 4 reels featuring 16 iconic Street Fighter characters (Ryu, Ken, Chun-Li, Blanka, Guile, Zangief, Dhalsim, E. Honda, Balrog, Vega, Sagat, M. Bison, Cammy, Fei Long, T. Hawk, and Dee Jay)
 - **Coin System**: Start with 100 coins, bet 10 coins per spin
 - **Reward System**:
   - **Pair** (2 matching symbols): 20 coins
   - **Three-of-a-Kind** (3 matching symbols): 50 coins
-  - **Perfect Match** (all 4 symbols match): 100 coins
+  - **Perfect Match** (all symbols match): 100 coins
   - Rewards accumulate (e.g., 2 pairs = 40 coins, pair + three-of-a-kind = 70 coins)
 - **Auto-Spin**: Enable continuous automatic spinning until you run out of coins or manually stop
 - **Game Over**: When coins drop below the bet amount, the game ends with a special game over screen
