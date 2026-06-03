@@ -13,7 +13,8 @@ const Home = (): React.ReactElement => {
   const [playerExists, setPlayerExists] = useState<boolean>(false)
   const [playerId, setPlayerId] = useState<number | null>(null)
   const [playerName, setPlayerName] = useState<string>('')
-  const [isAdding, setIsAdding] = useState<boolean>(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAdding, setIsAdding] = useState(false)
   const [players, setPlayers] = useState<LeaderboardEntry[]>([])
 
   useEffect(() => {
@@ -41,6 +42,7 @@ const Home = (): React.ReactElement => {
       } catch {
         clearAuthToken()
       }
+      setIsLoading(false)
     }
 
     checkExistingPlayer()
@@ -87,7 +89,7 @@ const Home = (): React.ReactElement => {
         <>
           <Logo />
 
-          {!playerExists ? (
+          {!isLoading && !playerExists && (
             <div className="add-player-welcome">
               <p className="welcome-message">
                 Welcome new player! Enter your name here to enter the leaderboard:{' '}
@@ -111,7 +113,8 @@ const Home = (): React.ReactElement => {
                 </RetroButton>
               </div>
             </div>
-          ) : (
+          )}
+          {!isLoading && playerExists && (
             <div className="continue-section">
               <p className="welcome-back-message">Welcome, {playerName}!</p>
               <RetroButton onClick={handleContinue}>Continue</RetroButton>
