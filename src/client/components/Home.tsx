@@ -33,7 +33,10 @@ const Home = (): React.ReactElement => {
   }, [])
 
   useEffect(() => {
-    if (!getAuthToken()) return
+    if (!getAuthToken()) {
+      setIsPlayerLoading(false)
+      return
+    }
 
     const checkExistingPlayer = async (): Promise<void> => {
       try {
