@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface RewardModalProps {
   reward: number
@@ -8,17 +8,28 @@ interface RewardModalProps {
 const RewardModal = ({ reward, onClose }: RewardModalProps): React.ReactElement => {
   const [isVisible, setIsVisible] = useState(true)
   const [isFading, setIsFading] = useState(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    return (): void => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     // Show for 2 seconds, then fade out
     const fadeTimer = setTimeout(() => {
-      setIsFading(true)
+      if (mountedRef.current) {
+        setIsFading(true)
+      }
     }, 2000)
 
     // Close after fade animation completes
     const closeTimer = setTimeout(() => {
-      setIsVisible(false)
-      onClose()
+      if (mountedRef.current) {
+        setIsVisible(false)
+        onClose()
+      }
     }, 2500) // 2000ms display + 500ms fade
 
     return (): void => {

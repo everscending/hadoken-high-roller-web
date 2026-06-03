@@ -24,10 +24,22 @@ const betAmount = 10
 const totalSlots = 5
 const slotUpdateInterval = 500
 
+const getAudio = (() => {
+  const cache = new Map<string, HTMLAudioElement>()
+  return (url: string): HTMLAudioElement => {
+    let audio = cache.get(url)
+    if (!audio) {
+      audio = new Audio(url)
+      cache.set(url, audio)
+    }
+    audio.currentTime = 0
+    return audio
+  }
+})()
+
 const playYouWonSound = (): void => {
   try {
-    const audio = new Audio(youWonSoundUrl)
-    audio.play().catch((error) => {
+    getAudio(youWonSoundUrl).play().catch((error) => {
       console.warn('Could not play you won sound:', error)
     })
   } catch (error) {
@@ -37,8 +49,7 @@ const playYouWonSound = (): void => {
 
 const playYouLostSound = (): void => {
   try {
-    const audio = new Audio(youLostSoundUrl)
-    audio.play().catch((error) => {
+    getAudio(youLostSoundUrl).play().catch((error) => {
       console.warn('Could not play you lost sound:', error)
     })
   } catch (error) {
@@ -48,34 +59,22 @@ const playYouLostSound = (): void => {
 
 const playGameOverSound = (): void => {
   try {
-    const betaVsScreenAudio = new Audio(betaVsScreenSoundUrl)
-    betaVsScreenAudio.play().catch((error) => {
-      console.warn('Could not play beta vs screen sound:', error)
-      try {
-        const youLoseAudio = new Audio(gameOverSoundUrl)
-        youLoseAudio.play().catch((err) => {
-          console.warn('Could not play you lose sound:', err)
-        })
-      } catch (err) {
-        console.warn('Could not play you lose sound:', err)
-      }
+    const betaVsScreenAudio = getAudio(betaVsScreenSoundUrl)
+    betaVsScreenAudio.play().catch(() => {
+      getAudio(gameOverSoundUrl).play().catch((error) => {
+        console.warn('Could not play game over sound:', error)
+      })
     })
 
     betaVsScreenAudio.addEventListener('ended', () => {
-      try {
-        const youLoseAudio = new Audio(gameOverSoundUrl)
-        youLoseAudio.play().catch((error) => {
-          console.warn('Could not play you lose sound:', error)
-        })
-      } catch (error) {
+      getAudio(gameOverSoundUrl).play().catch((error) => {
         console.warn('Could not play you lose sound:', error)
-      }
-    })
+      })
+    }, { once: true })
   } catch (error) {
     console.warn('Could not play game over sound:', error)
     try {
-      const audio = new Audio(gameOverSoundUrl)
-      audio.play().catch((error) => {
+      getAudio(gameOverSoundUrl).play().catch((error) => {
         console.warn('Could not play fallback game over sound:', error)
       })
     } catch (fallbackError) {
@@ -86,8 +85,7 @@ const playGameOverSound = (): void => {
 
 const playSymbolChosenSound = (): void => {
   try {
-    const audio = new Audio(symbolChosenSoundUrl)
-    audio.play().catch((error) => {
+    getAudio(symbolChosenSoundUrl).play().catch((error) => {
       console.warn('Could not play symbol chosen sound:', error)
     })
   } catch (error) {
@@ -97,8 +95,7 @@ const playSymbolChosenSound = (): void => {
 
 const playPerfectWinSound = (): void => {
   try {
-    const audio = new Audio(perfectWinSoundUrl)
-    audio.play().catch((error) => {
+    getAudio(perfectWinSoundUrl).play().catch((error) => {
       console.warn('Could not play perfect win sound:', error)
     })
   } catch (error) {
@@ -107,11 +104,11 @@ const playPerfectWinSound = (): void => {
 }
 
 const playGameStartSound = (onFinished: () => void): void => {
-  const round1Audio = new Audio(round1SoundUrl)
+  const round1Audio = getAudio(round1SoundUrl)
   round1Audio
     .play()
     .then(() => {
-      round1Audio.addEventListener('ended', onFinished)
+      round1Audio.addEventListener('ended', onFinished, { once: true })
     })
     .catch((err) => {
       console.warn('Could not play round 1 sound:', err)
@@ -158,6 +155,9 @@ const Play = (): React.ReactElement => {
   const [isAutoSpinning, setIsAutoSpinning] = useState<boolean>(false)
   const [isRewardModalVisible, setIsRewardModalVisible] = useState<boolean>(false)
   const autoSpinRef = useRef<boolean>(false)
+  const isGameOverRef = useRef<boolean>(false)
+  const isRewardModalVisibleRef = useRef<boolean>(false)
+  const coinsAfterBetRef = useRef<number>(0)
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null
@@ -237,10 +237,9 @@ const Play = (): React.ReactElement => {
   }
 
   const spin = (): void => {
-    let coinsAfterBet = 0
     setTotalCoins((prev) => {
-      coinsAfterBet = prev - betAmount
-      return coinsAfterBet
+      coinsAfterBetRef.current = prev - betAmount
+      return coinsAfterBetRef.current
     })
     setIsSpinning(true)
     setReward(null)
@@ -290,7 +289,7 @@ const Play = (): React.ReactElement => {
 
       setReward(calculatedReward)
       setIsRewardModalVisible(true)
-      const finalCoins = coinsAfterBet + calculatedReward
+      const finalCoins = coinsAfterBetRef.current + calculatedReward
       setTotalCoins(finalCoins)
 
       const isGameEnding = finalCoins < betAmount
@@ -335,8 +334,8 @@ const Play = (): React.ReactElement => {
             if (
               autoSpinRef.current &&
               finalCoins >= betAmount &&
-              !isGameOver &&
-              !isRewardModalVisible
+              !isGameOverRef.current &&
+              !isRewardModalVisibleRef.current
             ) {
               spin()
             }
@@ -385,6 +384,14 @@ const Play = (): React.ReactElement => {
   useEffect(() => {
     autoSpinRef.current = isAutoSpinning
   }, [isAutoSpinning])
+
+  useEffect(() => {
+    isGameOverRef.current = isGameOver
+  }, [isGameOver])
+
+  useEffect(() => {
+    isRewardModalVisibleRef.current = isRewardModalVisible
+  }, [isRewardModalVisible])
 
   return (
     <div className="play page-container-play">

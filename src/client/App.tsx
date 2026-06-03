@@ -5,6 +5,7 @@ import WAVES from 'vanta/dist/vanta.waves.min'
 import Splash from './components/Splash'
 import Home from './components/Home'
 import Play from './components/Play'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const AnimatedRoutes = (): JSX.Element => {
   const location = useLocation()
@@ -74,10 +75,12 @@ function App(): JSX.Element {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/splash" replace />} />
-        <Route path="/*" element={<AnimatedRoutes />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<Navigate to="/splash" replace />} />
+          <Route path="/*" element={<AnimatedRoutes />} />
+        </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }
