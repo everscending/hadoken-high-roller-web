@@ -11,6 +11,7 @@ const RewardModal = ({ reward, onClose }: RewardModalProps): React.ReactElement 
   const mountedRef = useRef(true)
 
   useEffect(() => {
+    mountedRef.current = true
     return (): void => {
       mountedRef.current = false
     }
