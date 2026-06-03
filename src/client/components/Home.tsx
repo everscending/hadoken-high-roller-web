@@ -13,7 +13,8 @@ const Home = (): React.ReactElement => {
   const [playerExists, setPlayerExists] = useState<boolean>(false)
   const [playerId, setPlayerId] = useState<number | null>(null)
   const [playerName, setPlayerName] = useState<string>('')
-  const [isLoading, setIsLoading] = useState(true)
+  const [isPlayerLoading, setIsPlayerLoading] = useState(true)
+  const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(true)
   const [isAdding, setIsAdding] = useState(false)
   const [players, setPlayers] = useState<LeaderboardEntry[]>([])
 
@@ -25,6 +26,7 @@ const Home = (): React.ReactElement => {
       } catch (error) {
         console.error('Database error:', error)
       }
+      setIsLeaderboardLoading(false)
     }
 
     loadPlayers()
@@ -42,7 +44,7 @@ const Home = (): React.ReactElement => {
       } catch {
         clearAuthToken()
       }
-      setIsLoading(false)
+      setIsPlayerLoading(false)
     }
 
     checkExistingPlayer()
@@ -84,44 +86,51 @@ const Home = (): React.ReactElement => {
 
   return (
     <div className="home page-container">
+      <Logo />
       {message.includes('Error') && <Error error={message} />}
       {!message.includes('Error') && (
         <>
-          <Logo />
-
-          {!isLoading && !playerExists && (
-            <div className="add-player-welcome">
-              <p className="welcome-message">
-                Welcome new player! Enter your name here to enter the leaderboard:{' '}
-              </p>
-              <div className="add-player-form">
-                <input
-                  type="text"
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  className="add-player-input"
-                  disabled={isAdding}
-                  placeholder="Enter your name..."
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleAddPlayer()
-                    }
-                  }}
-                />
-                <RetroButton onClick={handleAddPlayer} disabled={isAdding || !playerName.trim()}>
-                  {isAdding ? 'Adding...' : 'Add'}
-                </RetroButton>
-              </div>
-            </div>
+          {isPlayerLoading || isLeaderboardLoading ? (
+            <p>Loading...</p>
+          ) : (
+            <>
+              {!playerExists && (
+                <div className="add-player-welcome">
+                  <p className="welcome-message">
+                    Welcome new player! Enter your name here to enter the leaderboard:{' '}
+                  </p>
+                  <div className="add-player-form">
+                    <input
+                      type="text"
+                      value={playerName}
+                      onChange={(e) => setPlayerName(e.target.value)}
+                      className="add-player-input"
+                      disabled={isAdding}
+                      placeholder="Enter your name..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleAddPlayer()
+                        }
+                      }}
+                    />
+                    <RetroButton
+                      onClick={handleAddPlayer}
+                      disabled={isAdding || !playerName.trim()}
+                    >
+                      {isAdding ? 'Adding...' : 'Add'}
+                    </RetroButton>
+                  </div>
+                </div>
+              )}
+              {playerExists && (
+                <div className="continue-section">
+                  <p className="welcome-back-message">Welcome, {playerName}!</p>
+                  <RetroButton onClick={handleContinue}>Continue</RetroButton>
+                </div>
+              )}
+              <PlayersList players={players} />
+            </>
           )}
-          {!isLoading && playerExists && (
-            <div className="continue-section">
-              <p className="welcome-back-message">Welcome, {playerName}!</p>
-              <RetroButton onClick={handleContinue}>Continue</RetroButton>
-            </div>
-          )}
-
-          <PlayersList players={players} />
         </>
       )}
     </div>
